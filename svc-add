@@ -1,0 +1,44 @@
+#!/bin/dash
+
+# COMP2041 assignment 1 (system version control) 
+# svc-add
+# 
+# Written by Saba Kiani (z5592529)
+# saba.kiani@student.unsw.edu.au
+# On 05/07/2026
+#
+# Adds the given file to the .svc index directory
+
+# Exit early if no files given to add
+if [ $# -lt 1 ]; then
+    echo "usage: svc-add <filenames>"
+    exit 1
+fi
+
+# Confirm .svc directory exists
+if [ ! -d ".svc" ]; then
+    echo "svc-add: error: svc repository directory .svc not found" >&2
+    exit 1
+fi
+
+# add each given file to the .svc directory
+for currentFile in "$@"; do 
+    # Handle absent requested file in home directory
+    if [ ! -e "$currentFile" ]; then 
+        # If file exists in index, stage its deletion from the
+        # Home directory
+        if [ -e ".svc/index/$currentFile" ]; then 
+            rm ".svc/index/$currentFile"
+        else
+            # Otherwise the file hadn't existed
+            echo "svc-add: error: can not open '$currentFile'" >&2
+        fi
+    # Error if argument is a directory
+    elif [ -d "$currentFile" ]; then 
+        echo "svc-add: error: '$currentFile' is not a regular file" >&2
+    
+    # Copy the file into .svc index directory
+    else
+        cp "$currentFile" ".svc/index"
+    fi
+done
