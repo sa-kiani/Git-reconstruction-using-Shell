@@ -1,0 +1,73 @@
+#!/bin/dash
+
+# COMP2041 assignment 1 (system version control) 
+# svc-show
+# 
+# Written by Saba Kiani (z5592529)
+# saba.kiani@student.unsw.edu.au
+# On 07/07/2026
+#
+# Finds the correct file to echo as output
+
+# Confirm .svc directory exists
+if [ ! -d ".svc" ]; then
+    echo "svc-show: error: svc repository directory .svc not found" >&2
+    exit 1
+fi
+
+# Confirm command line argument's number and syntax
+if [ $# -ne 1 ]; then
+    echo "usage: svc-show <commit>:<filename>"
+    exit 1
+fi
+
+# Identify input requests
+commitInput=$1;
+commitNum=$(echo "$commitInput" | cut -d":" -f1);
+latestCommit=$(cat ".svc/svc-trackCommits")
+
+# Handle misinputs 
+case "$commitInput" in 
+:*)
+    # If no number given,
+    # Direct to index
+    fileName=$(echo "$commitInput" | cut -d":" -f2);
+    location="index"
+    
+    requestedFile=".svc/index/$fileName"
+    ;;
+[0-9]*:*)
+    # Check if requested commit is larger than available
+    if [ "$commitNum" -gt "$latestCommit" ]; then
+        echo "svc-show: error: unknown commit '$commitNum'" >&2
+        exit 1
+    fi
+
+    fileName=$(echo "$commitInput" | cut -d":" -f2);
+    location="commit $commitNum"
+    
+    # Direct to correct file that was requested
+    requestedFile=".svc/commit_$commitNum/$fileName"
+    ;;
+*[!0-9]*) 
+    # Output error catching non-number input
+    echo "svc-show: error: unknown commit '$commitNum'" >&2
+    exit 1
+    ;;
+*) 
+    # No colons given
+    echo "usage: svc-show <commit>:<filename>"
+    exit 1
+    ;;
+esac
+
+# Confirm the requested file exists, and output its content
+if [ -f "$requestedFile" ]; then 
+    cat "$requestedFile"
+else 
+    echo "svc-show: error: '$fileName' not found in $location" >&2
+    exit 1
+fi
+
+
+

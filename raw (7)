@@ -1,0 +1,164 @@
+#!/bin/dash
+
+# COMP2041 assignment 1 (system version control) 
+# svc-status
+# 
+# Written by Saba Kiani (z5592529)
+# saba.kiani@student.unsw.edu.au
+# On 09/07/2026
+#
+# "shows the status of files in the current 
+# directory, the index, and the repository."
+
+# Helper function - handles the singular presence of a file
+singularPresence() {
+    file=$1
+    inLocal=$2
+    inIndx=$3
+    inComm=$4
+
+    # If file absent in index and commit, then untracked
+    if [ "$inLocal" -eq 1 ] && [ "$inIndx" -eq 0 ] && [ "$inComm" -eq 0 ]; then
+        echo "$file - untracked"
+    fi
+
+    # If file only present in index
+    if [ "$inLocal" -eq 0 ] && [ "$inIndx" -eq 1 ] && [ "$inComm" -eq 0 ]; then
+        echo "$file - added to index, file deleted"
+    fi
+
+    # If file absent from local and index, present in commits
+    if [ "$inLocal" -eq 0 ] && [ "$inIndx" -eq 0 ] && [ "$inComm" -eq 1 ]; then
+        echo "$file - file deleted, deleted from index"
+    fi
+}
+
+# Helper function - handles the two-location presence of a file
+dualPresence(){
+    file=$1
+    inLocal=$2
+    inIndx=$3
+    inComm=$4
+
+    # Exists in commit and index, but not locally
+    if [ "$inLocal" -eq 0 ] && [ "$inIndx" -eq 1 ] && [ "$inComm" -eq 1 ]; then  
+        # Handle if index and commit files are identical
+        if diff  ".svc/index/$file" ".svc/commit_$latestCommit/$file"  >/dev/null 2>&1; then 
+            echo "$file - file deleted"
+        else 
+            echo "$file - file deleted, changes staged for commit"
+        fi
+    fi
+    
+    # Exists locally and in commit, but not in index
+    if [ "$inLocal" -eq 1 ] && [ "$inIndx" -eq 0 ] && [ "$inComm" -eq 1 ]; then 
+        # Disregard if files are identical
+        echo "$file - deleted from index"
+    fi
+
+    # Exists locally and in index, but not in commits
+    if [ "$inLocal" -eq 1 ] && [ "$inIndx" -eq 1 ] && [ "$inComm" -eq 0 ]; then 
+        # Handle if files are identical
+        if diff ".svc/index/$file" "$file" >/dev/null 2>&1; then 
+            echo "$file - added to index"
+        else 
+            echo "$file - added to index, file changed"
+        fi
+    fi
+}
+
+# Helper function - handles the tri-location presence of a file
+triplePresence() {
+    file=$1
+    indxAddress=".svc/index/$file"
+    commAddress=".svc/commit_$latestCommit/$file"
+
+    # If index and commit identical, but not local
+    if ! diff "$indxAddress" "$commAddress" >/dev/null 2>&1 && diff "$indxAddress" "$file" >/dev/null 2>&1; then 
+        echo "$file - file changed, changes staged for commit"
+    elif ! diff "$indxAddress" "$file" >/dev/null 2>&1 && diff "$indxAddress" "$commAddress" >/dev/null 2>&1; then
+        # If index and local identical, but not commits
+        echo "$file - file changed, changes not staged for commit"
+    elif ! diff "$indxAddress" "$commAddress" >/dev/null 2>&1 && ! diff "$indxAddress" "$file" >/dev/null 2>&1; then
+        # If staged index is different with local and commits
+        echo "$file - file changed, different changes staged for commit"
+    else 
+        echo "$file - same as repo"
+    fi
+}
+
+# Validate that .svc directory exists
+if [ ! -d ".svc" ]; then 
+    echo "svc-status: error: svc repository directory .svc not found"  >&2
+    exit 1
+fi
+
+# Acquire latest commit number from tracking file
+latestCommit=$(cat ".svc/svc-trackCommits")
+
+# Add all files to a storage file
+touch ".filesList"
+
+for file in * ; do 
+    if [ -f "$file" ]; then
+    echo "$file" >> ".filesList"
+    fi
+done
+
+for indxFile in .svc/index/*; do
+    if [ -f "$indxFile" ]; then
+        filename=$(basename "$indxFile")
+        echo "$filename" >> ".filesList"
+    fi
+done
+
+if [ "$latestCommit" -ge 0 ]; then 
+    for commFile in .svc/"commit_$latestCommit"/*; do
+        if [ -f "$commFile" ]; then
+            filename=$(basename "$commFile")
+            echo "$filename" >> ".filesList"
+        fi 
+    done
+fi
+
+# Alphabetise all files and remove multiples, 
+# and loop through the names to determine status
+for currFile in $(sort ".filesList" | uniq); do
+    # Skip message file
+    if [ "$currFile" = "message" ]; then
+        continue
+    fi
+
+    # Determine presence of file
+    if [ -f "$currFile" ]; then
+        inLocal=1
+    else 
+        inLocal=0
+    fi
+
+    if [ -f ".svc/index/$currFile" ]; then
+        inIndx=1
+    else 
+        inIndx=0
+    fi
+
+    if [ "$latestCommit" -ge 0 ] && [ -f ".svc/commit_$latestCommit/$currFile" ]; then
+        inComm=1
+    else 
+        inComm=0
+    fi
+
+    # Account for differences between directories
+    numPresent=$((inLocal + inIndx + inComm))
+
+    if [ "$numPresent" -eq 3 ]; then 
+        triplePresence "$currFile" "$inLocal" "$inIndx" "$inComm"
+    elif [ "$numPresent" -eq 2 ]; then 
+        dualPresence "$currFile" "$inLocal" "$inIndx" "$inComm"
+    else 
+        singularPresence "$currFile" "$inLocal" "$inIndx" "$inComm"
+    fi
+done
+
+# Clean up
+rm ".filesList"

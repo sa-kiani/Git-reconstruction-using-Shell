@@ -1,0 +1,29 @@
+#!/bin/dash
+
+# COMP2041 assignment 1 (system version control) 
+# svc-init
+# 
+# Written by Saba Kiani (z5592529)
+# saba.kiani@student.unsw.edu.au
+# On 04/07/2026
+#
+# Initialises the shell version control directory .svc
+
+# Confirm correct command line arguments
+if [ $# -ne 0 ]; then 
+    echo "usage: svc-init"
+    exit 1
+fi
+
+# Confirm no .svc directory present
+if [ -e ".svc" ]; then
+    echo "svc-init: error: .svc already exists" >&2
+    exit 1
+fi
+
+# make the directory and subdirectories
+mkdir ".svc"
+echo "-1" > ".svc/svc-trackCommits"
+mkdir -p ".svc/index"
+
+echo "Initialized empty svc repository in .svc"

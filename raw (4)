@@ -1,0 +1,43 @@
+#!/bin/dash
+
+# COMP2041 assignment 1 (system version control) 
+# svc-log
+# 
+# Written by Saba Kiani (z5592529)
+# saba.kiani@student.unsw.edu.au
+# On 06/07/2026
+#
+# Ouputs every commit message and number
+
+# Helper function,
+# Echoes the chosen commit's number and message
+getMessageFile() {
+    currentDirectory=$1
+    commitNum=$(echo "$currentDirectory" | cut -d"_" -f2)
+    echo "$commitNum $(cat "$currentDirectory/message")"
+}
+
+# Ensure the .svc directory exists
+if [ ! -d ".svc" ]; then
+    echo "svc-log: error: svc repository directory .svc not found" >&2
+    exit 1
+fi
+
+# Find the most recent commit file
+latestCommit=$(cat ".svc/svc-trackCommits")
+
+# Exit early if no commits to log
+if [ "$latestCommit" -lt 0 ]; then
+    exit 0
+fi
+
+# Traverse the message files in descending order
+while [ "$latestCommit" -ge 0 ]; do 
+    # Skip any deleted commit files
+    currentDir=".svc/commit_$latestCommit"
+    if [ -d "$currentDir" ]; then 
+        getMessageFile "$currentDir"
+    fi
+
+    latestCommit=$((latestCommit-1))
+done 

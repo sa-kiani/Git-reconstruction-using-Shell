@@ -1,0 +1,118 @@
+#!/bin/dash
+
+# COMP2041 assignment 1 (system version control) 
+# svc-rm
+# 
+# Written by Saba Kiani (z5592529)
+# saba.kiani@student.unsw.edu.au
+# On 08/07/2026
+#
+# Removes a file from the index,
+# or from the current directory and the index.
+
+# Confirm at least 1 command line argument is present
+if [ $# -eq 0 ]; then
+    echo "usage: svc-rm [--force] [--cached] <filenames>" 
+    exit 1
+fi
+
+# Handle command-line inputs until files reached 
+FORCED=0            
+CACHED=0
+for currentArg in "$@" ; do 
+    case "$currentArg" in 
+    --force) 
+        FORCED=1
+        ;;
+    --cached)
+        CACHED=1
+        ;;
+    -*)
+        # Catch if unfamiliar tag used
+        echo "usage: svc-rm [--force] [--cached] <filenames>" 
+        exit 1
+        ;;
+    *)
+        # File name reached, break out of loop
+        break
+        ;;
+    esac
+done
+
+# Grab latest commit if it exists
+if [ -f ".svc/svc-trackCommits" ]; then 
+    latestCommit=$(cat ".svc/svc-trackCommits")
+else 
+    latestCommit=-1;
+fi
+
+            # need to confirm if its been committed!!!!
+
+# Loop through all requested files to validate and/or remove each
+for currFile in "$@"; do 
+    # Avoid treating the flags as files
+    if [ "$currFile" = "--cached" ] || [ "$currFile" = "--force" ]; then
+        continue
+    fi
+
+    # Ensure file exists in index regardless of tags
+    if [ ! -f ".svc/index/$currFile" ] || [ ! -f "$currFile" ] ; then 
+        echo "svc-rm: error: '$currFile' is not in the svc repository" >&2
+        exit 1
+    fi
+
+    # Find the last appearance of this file in the commit folders
+    currCommit="$latestCommit"
+    while [ "$currCommit" -ge 0 ]; do
+        # If not in this current directory, try the previous
+        if [ ! -f ".svc/commit_$currCommit/$currFile" ]; then
+            currCommit=$((currCommit - 1));
+        else 
+            # Break loop once found the correct commit directory
+            break
+        fi
+    done
+
+    # Handle absence/presence of "--force" and "--cached"
+    if [ "$FORCED" -eq 0 ]; then 
+    
+        # If latest commit file differs with current staged file, which matches working directory
+        if [ "$CACHED" -eq 0 ] && [ "$latestCommit" -ge 0 ] && ! diff ".svc/index/$currFile" ".svc/commit_$latestCommit/$currFile"  >/dev/null 2>&1 && diff ".svc/index/$currFile" "$currFile"  >/dev/null 2>&1; then
+            echo "svc-rm: error: '$currFile' has staged changes in the index" >&2
+            exit 1
+        fi
+
+        # If local and index are identical for cache, delete from index and continue
+        if [ "$CACHED" -eq 1 ] && diff ".svc/index/$currFile" "$currFile"  >/dev/null 2>&1; then
+            rm ".svc/index/$currFile"
+            continue
+        fi
+
+        # If all three directories are different
+                                                            # commit, add, change again
+        if ! diff "$currFile" ".svc/commit_$latestCommit/$currFile" >/dev/null 2>&1 && ! diff ".svc/index/$currFile" ".svc/commit_$latestCommit/$currFile"  >/dev/null 2>&1; then 
+            echo "svc-rm: error: '$currFile' in index is different to both the working file and the repository" >&2
+            exit 1
+        fi
+
+        # If local, unstaged modifications present
+        if [ "$CACHED" -eq 0 ] && [ -f "$currFile" ] && ! diff ".svc/index/$currFile" ".svc/commit_$latestCommit/$currFile"  >/dev/null 2>&1; then
+            echo "svc-rm: error: '$currFile' in index is different to both the working file and the repository" >&2
+            exit 1
+        fi
+
+        # If local files different from identical index and repository
+        if [ "$CACHED" -eq 0 ] && ! diff "$currFile" ".svc/commit_$latestCommit/$currFile" >/dev/null 2>&1 && diff ".svc/index/$currFile" ".svc/commit_$latestCommit/$currFile"  >/dev/null 2>&1; then 
+            echo "svc-rm: error: '$currFile' in the repository is different to the working file" >&2
+            exit 1
+        fi
+    fi
+
+    # Once validated, remove from index regardless of tags
+    rm ".svc/index/$currFile"
+
+    # If not cached, remove the file in the correct address
+    if [ "$CACHED" -ne 1 ]; then 
+        rm -f "$currFile"       
+    fi
+done 
